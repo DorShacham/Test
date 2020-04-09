@@ -1,11 +1,20 @@
 #include <stdio.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include "func.h"
 
 int main()
 {
-    int x = 0;
-    char str[100] = "";
-    scanf("%d %s",&x, str );
-    printf("Hello World!\n%d.\t%s\n",x ,str);
+    typedef enum ans
+    {
+        YES,
+        NO,
+        MAYBE
+    } ans;
+    ans e = MAYBE;
+    ans f = NO;
+    printf("%d\n", f2(e, f));
+    malloc(100);
     return 0;
 }

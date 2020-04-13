@@ -1,0 +1,348 @@
+#include "map.h"
+#include <assert.h>
+#include <stdbool.h>
+#include <string.h>
+#include <stdlib.h>
+
+struct Map_t
+{
+    char *key;
+    char *data;
+    Map iterator;
+    Map next;
+};
+
+typedef enum
+{
+    Key,
+    Data
+} InformationType;
+
+//Moves the map's iterator to target and return's a pointer to the current node the map's iterator is pointing or NULL if target is NULL.
+// Assuming that map is not NULL
+static Map mapMoveIterator(Map map, Map target);
+//Moves the map's iterator to the first node and return's a pointer to the current node the map's iterator is pointing or NULL if the first node is NULL.
+// Assuming that map is not NULL
+static Map mapFirstNode(Map map);
+//Moves the map's iterator to next and return's a pointer to the current node the map's iterator is pointing or NULL if next is NULL.
+// Assuming that map is not NULL
+static Map mapNextNode(Map map);
+//Creates a new node and attach it to the last node, returns a pointer to the node if the malloc was successful or NULL if it fails.
+static Map mapNewNod(Map map);
+//Returns a pointer to the node with the same key as the @parm key (determine by strcmp) or NULL if there is no node with that key. Returns
+// NULL if map or key is NULL
+static Map mapFindNode(Map map, const char *key);
+//Insert Information to the node in the filed mention in type. Returns MAP_SUCCESS if the malloc succeeded, MAP_OUT_OF_MEMORY if it fails or MAP_NULL_ARGUMENT if
+//InformationType is not defined.
+//If there is allready information it releas it and reallocate.
+static MapResult mapInsertInformationToNode(Map node, InformationType type, const char *information);
+//Free node and all it's fildes.
+static void mapDestroyNode(Map node);
+
+static Map mapMoveIterator(Map map, Map target)
+{
+    assert(map != NULL);
+    map->iterator = target;
+    if (map->iterator == NULL)
+    {
+        return NULL;
+    }
+    return (map->iterator);
+}
+
+static Map mapFirstNode(Map map)
+{
+    assert(map != NULL);
+    return mapMoveIterator(map, map->next);
+}
+
+static Map mapNextNode(Map map)
+{
+    assert(map != NULL);
+    if (map->iterator == NULL)
+    {
+        return NULL;
+    }
+    return mapMoveIterator(map, map->iterator->next);
+}
+
+static Map mapNewNod(Map map)
+{
+    assert(map != NULL);
+    Map iterator_backup = map->iterator;
+    Map iterator = mapFirstNode(map);
+    Map new_node = NULL;
+    Map last_node = NULL;
+    if (iterator == NULL) //If map is empty and this is the first node
+    {
+        last_node = map;
+    }
+    else
+    {
+        for (; (iterator->next != NULL); iterator = mapNextNode(map))
+            ;
+        last_node = iterator;
+    }
+    new_node = malloc(sizeof(*new_node));
+    if (new_node == NULL)
+    {
+        return NULL;
+    }
+    new_node->next = NULL;
+    new_node->key = NULL;
+    new_node->data = NULL;
+    last_node->next = new_node;
+    map->iterator = iterator_backup;
+    return new_node;
+}
+
+static Map mapFindNode(Map map, const char *key)
+{
+    if ((map == NULL) || (key == NULL))
+    {
+        return NULL;
+    }
+    Map iterator_backup = map->iterator;
+    Map iterator = mapFirstNode(map);
+    while (iterator != NULL)
+    {
+        if (strcmp(iterator->key, key) == 0)
+        {
+            map->iterator = iterator_backup;
+            return iterator;
+        }
+        assert(strcmp(iterator->key, key));
+        iterator = mapNextNode(map);
+    }
+    map->iterator = iterator_backup;
+    return NULL;
+}
+
+static MapResult mapInsertInformationToNode(Map node, InformationType type, const char *information)
+{
+    assert(node != NULL);
+    assert(information != NULL);
+    char **tmp_ptr = NULL;
+    switch (type)
+    {
+    case Key:
+        tmp_ptr = &(node->key);
+        break;
+    case Data:
+        tmp_ptr = &(node->data);
+        break;
+    default:
+        assert((type != Data) && (type != Key));
+        return MAP_NULL_ARGUMENT;
+        break;
+    }
+    assert(tmp_ptr != NULL);
+    free(*(tmp_ptr));
+    *tmp_ptr = malloc(sizeof(strlen(information) + 1));
+    if (*tmp_ptr == NULL)
+    {
+        return MAP_OUT_OF_MEMORY;
+    }
+    strcpy(*tmp_ptr, information);
+    return MAP_SUCCESS;
+}
+
+static void mapDestroyNode(Map node)
+{
+    if (node == NULL)
+    {
+        return;
+    }
+    free(node->data);
+    free(node->key);
+    free(node);
+}
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//creates a dummy first link
+Map mapCreate()
+{
+    Map new_map_ptr = malloc(sizeof(*new_map_ptr));
+    if (new_map_ptr == NULL)
+    {
+        return NULL;
+    }
+    new_map_ptr->iterator = new_map_ptr->next;
+    new_map_ptr->next = NULL;
+    return new_map_ptr;
+}
+
+char *mapGetFirst(Map map)
+{
+    if (map == NULL)
+    {
+        return NULL;
+    }
+    Map iterator_current_place = mapFirstNode(map);
+    if (iterator_current_place == NULL)
+    {
+        return NULL;
+    }
+    return iterator_current_place->key;
+}
+
+char *mapGetNext(Map map)
+{
+    if (map == NULL)
+    {
+        return NULL;
+    }
+    Map iterator_current_place = mapNextNode(map);
+    if (iterator_current_place == NULL)
+    {
+        return NULL;
+    }
+    return iterator_current_place->key;
+}
+
+MapResult mapClear(Map map)
+{
+    if (map == NULL)
+    {
+        return MAP_NULL_ARGUMENT;
+    }
+    Map current_node = map->next;
+    Map next_node = NULL;
+
+    while (current_node != NULL)
+    {
+        next_node = current_node->next;
+        mapDestroyNode(current_node);
+        current_node = next_node;
+    }
+    return MAP_SUCCESS;
+}
+
+void mapDestroy(Map map)
+{
+    if (map == NULL)
+    {
+        return;
+    }
+    mapClear(map);
+    free(map);
+}
+
+int mapGetSize(Map map)
+{
+    if (map == NULL)
+    {
+        return (-1);
+    }
+    int counter = 0;
+    Map iterator_backup = map->iterator;
+    Map iterator = mapFirstNode(map);
+    while (iterator != NULL)
+    {
+        counter++;
+        iterator = mapNextNode(map);
+    }
+    map->iterator = iterator_backup;
+    return counter;
+}
+
+bool mapContains(Map map, const char *key)
+{
+    Map tmp_ptr = mapFindNode(map, key);
+    return (tmp_ptr != NULL);
+}
+
+MapResult mapPut(Map map, const char *key, const char *data)
+{
+    if ((map == NULL) || (key == NULL) || (data == NULL))
+    {
+        return MAP_NULL_ARGUMENT;
+    }
+    MapResult result_data, result_key;
+    Map node = mapFindNode(map, key);
+    if (node != NULL)
+    {
+        result_data = mapInsertInformationToNode(node, Data, data);
+        assert((result_data == MAP_OUT_OF_MEMORY) || (result_data == MAP_SUCCESS));
+        return result_data;
+    }
+
+    Map new_node = mapNewNod(map);
+    if (new_node == NULL)
+    {
+        return MAP_OUT_OF_MEMORY;
+    }
+    result_data = mapInsertInformationToNode(new_node, Data, data);
+    result_key = mapInsertInformationToNode(new_node, Key, key);
+    assert((result_data == MAP_OUT_OF_MEMORY) || (result_data == MAP_SUCCESS));
+    assert((result_key == MAP_OUT_OF_MEMORY) || (result_key == MAP_SUCCESS));
+    if ((result_key == MAP_OUT_OF_MEMORY) || (result_key == MAP_OUT_OF_MEMORY))
+    {
+        return MAP_OUT_OF_MEMORY;
+    }
+    return MAP_SUCCESS;
+}
+
+char *mapGet(Map map, const char *key)
+{
+    if ((map == NULL) || (key == NULL))
+    {
+        return NULL;
+    }
+    Map node = mapFindNode(map, key);
+    if (node == NULL)
+    {
+        return NULL;
+    }
+    return node->data;
+}
+
+MapResult mapRemove(Map map, const char *key)
+{
+    if ((map == NULL) || (key == NULL))
+    {
+        return MAP_NULL_ARGUMENT;
+    }
+    Map node = mapFindNode(map, key);
+    if (node == NULL)
+    {
+        return MAP_ITEM_DOES_NOT_EXIST;
+    }
+    Map previous_node = mapFirstNode(map);
+    assert(previous_node != NULL);
+    while (previous_node->next != node)
+    {
+        assert((previous_node != NULL) && (previous_node->next != NULL));
+    }
+    previous_node->next = node->next;
+    mapDestroyNode(node);
+
+    return MAP_SUCCESS;
+}
+
+Map mapCopy(Map map)
+{
+    if(map == NULL)
+    {
+        return NULL;
+    }
+    Map new_map = mapCreate();
+    if(new_map == NULL)
+    {
+        return NULL;
+    }
+    Map iterator = mapFirstNode(map);
+    MapResult result;
+    while(iterator != NULL)
+    {
+        result = mapPut(new_map, iterator->key,iterator->data);
+        if(result == MAP_OUT_OF_MEMORY)
+        {
+            mapDestroy(new_map);
+            return NULL;
+        }
+        assert(result == MAP_SUCCESS);
+        iterator = mapNextNode(map);
+    }
+    return new_map;
+}
